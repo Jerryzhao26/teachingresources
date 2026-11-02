@@ -1,0 +1,29 @@
+import tempfile, unittest
+from pathlib import Path
+from admin import core
+class CoreTests(unittest.TestCase):
+ def test_encrypt_and_version(self):
+  with tempfile.TemporaryDirectory() as d:
+   olddata=core.DATA; core.DATA=Path(d)
+   try:
+    obj,key=core.catalog('correct horse battery staple')
+    key=core.save_catalog(obj,'correct horse battery staple')
+    pdf=b'%PDF-1.4\n%%EOF'
+    a=core.add_resource(obj,key,'BE2-U5-每周两次.pdf',pdf,{'book':'BE2','unit':5,'lessonType':'每周两次','download':False})
+    self.assertEqual(core.open_sealed((core.DATA/'blobs'/a['blob']).read_bytes(),key),pdf)
+    b=core.add_resource(obj,key,'new.pdf',pdf,{'id':a['id'],'download':True})
+    self.assertEqual(b['version'],2);self.assertEqual(len(b['history']),1)
+    core.save_catalog(obj,'correct horse battery staple',key)
+    before=(core.DATA/'blobs'/a['blob']).read_bytes()
+    core.rotate_password('correct horse battery staple','new password long enough')
+    self.assertEqual(before,(core.DATA/'blobs'/a['blob']).read_bytes())
+    with self.assertRaises(Exception):core.catalog('correct horse battery staple')
+    core.secure_reset('new password long enough','third password long enough')
+    self.assertNotEqual(before,(core.DATA/'blobs'/a['blob']).read_bytes())
+    loaded,_=core.catalog('third password long enough')
+    self.assertTrue(loaded['resources'][0]['download'])
+    with self.assertRaises(Exception):core.catalog('wrong password here')
+   finally:core.DATA=olddata
+ def test_infer(self):
+  self.assertEqual(core.infer('BE2-U5-每周两次.docx')['unit'],5)
+if __name__=='__main__':unittest.main()
