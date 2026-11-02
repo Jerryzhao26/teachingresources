@@ -19,7 +19,8 @@ class Handler(BaseHTTPRequestHandler):
             action = self.path
             if action == '/api/infer': return self.send(200, infer(body['filename']))
             if action == '/api/publish':
-                publish(body['remote']); return self.send(200, {'ok':True})
+                result = publish(body['remote'], body.get('token', ''))
+                return self.send(200, {'ok':True, **result})
             if action == '/api/reset':
                 secure_reset(body['password'], body['newPassword']); return self.send(200, {'ok':True})
             if action == '/api/rotate':

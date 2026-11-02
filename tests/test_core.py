@@ -1,5 +1,6 @@
 import tempfile, unittest
 from pathlib import Path
+from unittest.mock import patch
 from admin import core
 class CoreTests(unittest.TestCase):
  def test_encrypt_and_version(self):
@@ -29,4 +30,21 @@ class CoreTests(unittest.TestCase):
   self.assertEqual(core.infer('BE2-U5-每周两次.docx')['lessonType'],'一周两次')
   self.assertEqual(core.normalize_lesson_type('每天上课'),'每天上课')
   self.assertEqual(core.normalize_lesson_type('教材'),'教材')
+ def test_publish_only_changed_files(self):
+  with tempfile.TemporaryDirectory() as d:
+   site=Path(d); (site/'data').mkdir(); (site/'data/catalog.bin').write_bytes(b'encrypted')
+   calls=[]
+   def github(path, token, method='GET', payload=None):
+    calls.append((path,method,payload))
+    if path.endswith('/git/ref/heads/main'): return {'object':{'sha':'old'}}
+    if path.endswith('/git/commits/old'): return {'tree':{'sha':'tree'}}
+    if path.endswith('/git/trees/tree?recursive=1'): return {'tree':[]}
+    if path.endswith('/git/blobs'): return {'sha':'blob'}
+    if path.endswith('/git/trees'): return {'sha':'newtree'}
+    if path.endswith('/git/commits'): return {'sha':'newcommit'}
+    return {}
+   with patch.object(core,'SITE',site), patch.object(core,'_github_request',side_effect=github):
+    result=core.publish('https://github.com/Jerryzhao26/teachingresources.git','token')
+   self.assertEqual(result,{'changed':1,'sha':'newcommit'})
+   self.assertEqual(calls[-1][1:],('PATCH', {'sha':'newcommit','force':False}))
 if __name__=='__main__':unittest.main()

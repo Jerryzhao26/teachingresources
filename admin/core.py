@@ -1,5 +1,6 @@
 from __future__ import annotations
 import base64, datetime as dt, hashlib, json, os, re, secrets, subprocess, tempfile, uuid
+import urllib.error, urllib.request
 from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -74,6 +75,12 @@ end run'''
     p = subprocess.run(['osascript', '-e', script, str(src), str(dest)], capture_output=True, text=True, timeout=180)
     if p.returncode or not dest.exists(): raise RuntimeError('Word 转 PDF 失败：' + (p.stderr.strip() or p.stdout.strip()))
 
+def word_workdir():
+    # Word can read and write inside its own sandbox without requesting each file.
+    path = Path.home() / 'Library/Containers/com.microsoft.Word/Data/Documents/BeaversTeachingResources'
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
 def add_resource(obj, key, filename, raw, fields, converted=False):
     if len(raw) > 40*1024*1024: raise ValueError('单个文件不能超过 40 MB')
     original = Path(filename).name
@@ -87,7 +94,7 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
     (DATA/'blobs'/original_blob).write_bytes(seal(raw, key))
     pdf = raw if ext == '.pdf' else None
     if ext == '.docx':
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory(prefix='convert-', dir=word_workdir()) as td:
             src, out = Path(td)/'input.docx', Path(td)/'output.pdf'
             src.write_bytes(raw); convert_docx(src, out); pdf = out.read_bytes()
     if pdf is not None and not pdf.startswith(b'%PDF-'): raise ValueError('PDF 文件无效')
@@ -108,16 +115,49 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
                               'kind': 'updated' if old else 'created', 'createdAt': now, 'visible': bool(fields.get('showUpdate', True))})
     return item
 
-def publish(remote):
+def _github_request(path, token, method='GET', payload=None):
+    body = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request('https://api.github.com' + path, data=body, method=method,
+        headers={'Accept':'application/vnd.github+json', 'Authorization':'Bearer ' + token,
+                 'Content-Type':'application/json', 'User-Agent':'BeaversTeachingResources'})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        try: detail = json.load(error).get('message', '')
+        except Exception: detail = ''
+        if error.code in (401, 403): raise ValueError('GitHub 发布令牌无效或缺少该仓库的 Contents 写入权限') from error
+        if error.code == 409: raise ValueError('GitHub 仓库在发布期间发生变化，请重试') from error
+        raise ValueError(f'GitHub 发布失败（{error.code}）：{detail}') from error
+
+def publish(remote, token):
     if not re.fullmatch(r'https://github\.com/[\w.-]+/[\w.-]+(?:\.git)?', remote): raise ValueError('仅接受 GitHub HTTPS 仓库地址')
-    subprocess.run(['git','init','-b','main'], cwd=ROOT, check=True, capture_output=True)
-    remotes = subprocess.run(['git','remote'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.splitlines()
-    subprocess.run(['git','remote','set-url','origin',remote] if 'origin' in remotes else ['git','remote','add','origin',remote], cwd=ROOT, check=True)
-    subprocess.run(['git','fetch','origin','main'], cwd=ROOT, check=True, timeout=120)
-    subprocess.run(['git','reset','--mixed','origin/main'], cwd=ROOT, check=True)
-    subprocess.run(['git','add','docs'], cwd=ROOT, check=True, capture_output=True)
-    subprocess.run(['git','-c','user.name=Beavers Education','-c','user.email=beavers@users.noreply.github.com','commit','-m','Publish teaching resources'], cwd=ROOT, check=True, capture_output=True) if subprocess.run(['git','diff','--cached','--quiet'], cwd=ROOT).returncode else None
-    subprocess.run(['git','push','-u','origin','main'], cwd=ROOT, check=True, timeout=120)
+    if not token: raise ValueError('请先填写 GitHub 发布令牌（仅授予此仓库 Contents 读写权限）')
+    owner, repo = re.fullmatch(r'https://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?', remote).groups()
+    prefix = f'/repos/{owner}/{repo}'
+    head = _github_request(prefix + '/git/ref/heads/main', token)['object']['sha']
+    commit = _github_request(prefix + '/git/commits/' + head, token)
+    tree_sha = commit['tree']['sha']
+    existing = _github_request(prefix + '/git/trees/' + tree_sha + '?recursive=1', token)
+    known = {item['path']:item['sha'] for item in existing['tree'] if item['type'] == 'blob'}
+    changes = []
+    for path in sorted(SITE.rglob('*')):
+        if not path.is_file(): continue
+        name = 'docs/' + path.relative_to(SITE).as_posix()
+        raw = path.read_bytes()
+        digest = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+        if known.get(name) == digest: continue
+        blob = _github_request(prefix + '/git/blobs', token, 'POST',
+            {'content':b64(raw), 'encoding':'base64'})
+        changes.append({'path':name, 'mode':'100644', 'type':'blob', 'sha':blob['sha']})
+    if not changes: return {'changed':0, 'sha':head}
+    new_tree = _github_request(prefix + '/git/trees', token, 'POST',
+        {'base_tree':tree_sha, 'tree':changes})
+    new_commit = _github_request(prefix + '/git/commits', token, 'POST',
+        {'message':'Publish teaching resources', 'tree':new_tree['sha'], 'parents':[head]})
+    _github_request(prefix + '/git/refs/heads/main', token, 'PATCH',
+        {'sha':new_commit['sha'], 'force':False})
+    return {'changed':len(changes), 'sha':new_commit['sha']}
 
 
 def rotate_password(old_password, new_password):
