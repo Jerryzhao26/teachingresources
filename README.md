@@ -6,7 +6,7 @@
 
 需要 Python 3 和 `cryptography`：`python3 -m pip install cryptography`。双击 `run-admin.command`，或在项目目录运行 `python3 -m admin.server`。浏览器访问 `http://127.0.0.1:8765`。
 
-首次输入至少 12 字符的教师统一密码。选择 PDF、DOCX、PPTX 或 XLSX 批量导入；DOCX 原件加密保存，同时由本机 Microsoft Word 导出供阅读和打印的 PDF。默认允许下载。设置分类、系列总单元数和更新说明，然后保存公告与更新。若替换旧资源，先在资源列表选择替换目标，再导入一个新文件。点击“发布”将 `docs` 推送到 GitHub 仓库。
+首次输入至少 8 字符的教师统一密码。选择 PDF、DOCX、PPTX 或 XLSX 批量导入；DOCX 原件加密保存，同时由本机 Microsoft Word 导出供阅读和打印的 PDF。默认允许下载。设置分类、系列总单元数和更新说明，然后保存公告与更新。若替换旧资源，先在资源列表选择替换目标，再导入一个新文件。点击“发布”将 `docs` 推送到 GitHub 仓库。
 
 GitHub Pages 设为从 `main` 分支的 `/docs` 目录发布。教师页面需通过 HTTPS 访问，浏览器 Web Crypto API 在安全上下文中运行。
 
