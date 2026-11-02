@@ -1,0 +1,7 @@
+{
+  "format": 2,
+  "kdf": "PBKDF2-SHA256",
+  "iterations": 600000,
+  "salt": "CZFKBbHj2thcjpPJWZD7rA==",
+  "wrappedKey": "vpcbE2Yg6JjvI/TIcjFmtZgxwKiyl9Kky402U2Kkld7CquUiRA9yVdB0RRFrLaUIfMjJeoTYUrZoo8HY"
+}
