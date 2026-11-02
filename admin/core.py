@@ -147,8 +147,11 @@ def publish(remote, token):
     existing = _github_request(prefix + '/git/trees/' + tree_sha + '?recursive=1', token)
     known = {item['path']:item['sha'] for item in existing['tree'] if item['type'] == 'blob'}
     changes = []
-    for path in sorted(SITE.rglob('*')):
-        if not path.is_file(): continue
+    public_files = [SITE / name for name in ('index.html', 'app.js', 'style.css')]
+    encrypted_files = [SITE / 'data' / name for name in ('config.json', 'catalog.bin')]
+    encrypted_files += sorted((SITE / 'data' / 'blobs').glob('*.bin'))
+    for path in public_files + encrypted_files:
+        if not path.is_file() or path.is_symlink(): continue
         name = 'docs/' + path.relative_to(SITE).as_posix()
         raw = path.read_bytes()
         digest = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
