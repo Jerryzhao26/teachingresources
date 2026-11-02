@@ -2,7 +2,7 @@ from __future__ import annotations
 import base64, json, traceback, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from .core import ROOT, SITE, add_resource, catalog, config, derive, infer, publish, save_catalog, unb64
+from .core import ROOT, SITE, add_resource, catalog, config, derive, infer, publish, rotate_password, secure_reset, save_catalog, unb64
 
 ADMIN = Path(__file__).with_name('admin.html')
 class Handler(BaseHTTPRequestHandler):
@@ -20,6 +20,10 @@ class Handler(BaseHTTPRequestHandler):
             if action == '/api/infer': return self.send(200, infer(body['filename']))
             if action == '/api/publish':
                 publish(body['remote']); return self.send(200, {'ok':True})
+            if action == '/api/reset':
+                secure_reset(body['password'], body['newPassword']); return self.send(200, {'ok':True})
+            if action == '/api/rotate':
+                rotate_password(body['password'], body['newPassword']); return self.send(200, {'ok':True})
             password = body['password']
             obj, key = catalog(password)
             if action == '/api/load': return self.send(200, obj)
@@ -31,7 +35,7 @@ class Handler(BaseHTTPRequestHandler):
                 save_catalog(obj, password, key)
                 return self.send(200, {'items':items, 'catalog':obj})
             if action == '/api/save':
-                allowed = {'resources','updates','announcements'}
+                allowed = {'resources','updates','announcements','series'}
                 if set(body['catalog']) != allowed: raise ValueError('目录格式无效')
                 save_catalog(body['catalog'], password, key)
                 return self.send(200, {'ok':True})
