@@ -78,8 +78,14 @@ end run'''
 def word_workdir():
     # Word can read and write inside its own sandbox without requesting each file.
     path = Path.home() / 'Library/Containers/com.microsoft.Word/Data/Documents/BeaversTeachingResources'
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    except PermissionError:
+        # Some managed Macs deny other apps access to Word's container.
+        fallback = ROOT / 'word-conversion-work'
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
 
 def add_resource(obj, key, filename, raw, fields, converted=False):
     if len(raw) > 40*1024*1024: raise ValueError('单个文件不能超过 40 MB')

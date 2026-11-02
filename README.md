@@ -6,7 +6,11 @@
 
 需要 Python 3 和 `cryptography`：`python3 -m pip install cryptography`。双击 `run-admin.command`，或在项目目录运行 `python3 -m admin.server`。浏览器访问 `http://127.0.0.1:8765`。
 
-首次输入至少 8 字符的教师统一密码。选择 PDF、DOCX、PPTX 或 XLSX 批量导入；DOCX 原件加密保存，同时由本机 Microsoft Word 导出供阅读和打印的 PDF。默认允许下载。设置分类、系列总单元数和更新说明，然后保存公告与更新。若替换旧资源，先在资源列表选择替换目标，再导入一个新文件。点击“发布”将 `docs` 推送到 GitHub 仓库。
+首次输入至少 8 字符的教师统一密码。选择 PDF、DOCX、PPTX 或 XLSX 批量导入；DOCX 原件加密保存，同时由本机 Microsoft Word 导出供阅读和打印的 PDF。默认允许下载。设置分类、系列总单元数和更新说明，然后保存公告与更新。若替换旧资源，先在资源列表选择替换目标，再导入一个新文件。
+
+修改已有资源的下载权限：在“资源与版本”找到该资源，勾选或取消“显示下载按钮”；变化立即保存到本机。然后滚动到页面底部，填写 GitHub 发布令牌并点击“发布加密资源和网站”。令牌只需授权 `teachingresources` 仓库的 Contents 读写权限；本机工具只在本次运行期间将它留在内存，不写入文件。发布按钮旁会显示成功或错误，成功后等待 GitHub Pages 部署，再刷新教师网站。浏览器登录 GitHub 并不等于本机工具取得了发布权限。
+
+Word 转换的临时文件优先放在 Word 自己的容器目录，以减少 macOS 对每份文件的访问请求。如果系统禁止本机工具写入 Word 容器，则回退到项目内的临时目录；这种情况下 macOS 仍可能要求授权。
 
 GitHub Pages 设为从 `main` 分支的 `/docs` 目录发布。教师页面需通过 HTTPS 访问，浏览器 Web Crypto API 在安全上下文中运行。
 

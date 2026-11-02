@@ -5,6 +5,7 @@ from pathlib import Path
 from .core import ROOT, SITE, add_resource, catalog, config, derive, infer, publish, rotate_password, secure_reset, save_catalog, unb64
 
 ADMIN = Path(__file__).with_name('admin.html')
+publish_token = ''
 class Handler(BaseHTTPRequestHandler):
     def send(self, status, obj):
         raw = json.dumps(obj, ensure_ascii=False).encode()
@@ -19,7 +20,10 @@ class Handler(BaseHTTPRequestHandler):
             action = self.path
             if action == '/api/infer': return self.send(200, infer(body['filename']))
             if action == '/api/publish':
-                result = publish(body['remote'], body.get('token', ''))
+                global publish_token
+                token = body.get('token', '').strip() or publish_token
+                result = publish(body['remote'], token)
+                publish_token = token
                 return self.send(200, {'ok':True, **result})
             if action == '/api/reset':
                 secure_reset(body['password'], body['newPassword']); return self.send(200, {'ok':True})
