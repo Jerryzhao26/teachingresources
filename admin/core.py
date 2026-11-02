@@ -11,7 +11,7 @@ ITERATIONS = 600_000
 def b64(data): return base64.b64encode(data).decode('ascii')
 def unb64(data): return base64.b64decode(data)
 def derive(password: str, salt: bytes) -> bytes:
-    if len(password) < 12: raise ValueError('统一密码至少需要 12 个字符')
+    if len(password) < 8: raise ValueError('统一密码至少需要 8 个字符')
     return hashlib.pbkdf2_hmac('sha256', password.encode(), salt, ITERATIONS, 32)
 def seal(data: bytes, key: bytes) -> bytes:
     nonce = secrets.token_bytes(12)
