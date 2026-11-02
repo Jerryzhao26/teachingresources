@@ -46,11 +46,19 @@ def save_catalog(obj, password, key=None):
     (DATA/'catalog.bin').write_bytes(seal(json.dumps(obj, ensure_ascii=False, separators=(',', ':')).encode(), key))
     return key
 
+def normalize_lesson_type(value):
+    s = str(value or '')
+    if '每周两次' in s or '一周两次' in s: return '一周两次'
+    if '每周一次' in s or '一周一次' in s: return '一周一次'
+    if '每天' in s: return '每天上课'
+    if '教材' in s: return '教材'
+    return ''
+
 def infer(name):
     stem = Path(name).stem
     m = re.search(r'(?i)\b(BE\s*\d+)\s*[-_ ]*U(?:nit)?\s*(\d+)\b', stem)
     return {'book': m.group(1).upper().replace(' ', '') if m else '', 'unit': int(m.group(2)) if m else None,
-            'title': stem, 'lessonType': re.sub(r'^[\s_-]+', '', stem[m.end():]) if m else ''}
+            'title': stem, 'lessonType': normalize_lesson_type(stem)}
 
 def convert_docx(src: Path, dest: Path):
     script = '''on run argv
@@ -88,7 +96,7 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     item = {'id': rid, 'title': str(fields.get('title') or Path(original).stem).strip(),
             'book': str(fields.get('book') or '').strip(), 'unit': fields.get('unit'),
-            'lessonType': str(fields.get('lessonType') or '').strip(), 'category': str(fields.get('category') or '教案').strip(),
+            'lessonType': normalize_lesson_type(fields.get('lessonType')),  'category': str(fields.get('category') or '教案').strip(),
             'download': bool(fields.get('download', True)), 'filename': Path(original).stem + '.pdf',
             'originalFilename': original, 'originalBlob': original_blob, 'viewable': pdf is not None,
             'version': version, 'updatedAt': now, 'blob': blob, 'size': len(raw), 'status': 'published',

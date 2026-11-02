@@ -26,4 +26,7 @@ class CoreTests(unittest.TestCase):
    finally:core.DATA=olddata
  def test_infer(self):
   self.assertEqual(core.infer('BE2-U5-每周两次.docx')['unit'],5)
+  self.assertEqual(core.infer('BE2-U5-每周两次.docx')['lessonType'],'一周两次')
+  self.assertEqual(core.normalize_lesson_type('每天上课'),'每天上课')
+  self.assertEqual(core.normalize_lesson_type('教材'),'教材')
 if __name__=='__main__':unittest.main()
