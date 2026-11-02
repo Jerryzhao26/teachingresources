@@ -63,16 +63,25 @@ def infer(name):
 
 def convert_docx(src: Path, dest: Path):
     script = '''on run argv
-set inputPath to item 1 of argv
+set inputName to item 1 of argv
 set outputPath to item 2 of argv
+set hfsOutput to (POSIX file outputPath) as text
 tell application "Microsoft Word"
- activate
- open (POSIX file inputPath)
- save as document 1 file name outputPath file format format PDF
- close document 1 saving no
+ repeat 60 times
+  if exists document inputName then exit repeat
+  delay 0.25
+ end repeat
+ if not (exists document inputName) then error "Word 未能打开临时文档"
+ save as document inputName file name hfsOutput file format format PDF
+ close document inputName saving no
 end tell
 end run'''
-    p = subprocess.run(['osascript', '-e', script, str(src), str(dest)], capture_output=True, text=True, timeout=180)
+    # Launch Services grants Word access to the folder and its document.
+    for path in (src.parent, src):
+        subprocess.run(['open', '-a', 'Microsoft Word', str(path)], check=True,
+                       capture_output=True, text=True, timeout=30)
+    p = subprocess.run(['osascript', '-e', script, src.name, str(dest)],
+                       capture_output=True, text=True, timeout=180)
     if p.returncode or not dest.exists(): raise RuntimeError('Word 转 PDF 失败：' + (p.stderr.strip() or p.stdout.strip()))
 
 def word_workdir():
@@ -101,7 +110,7 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
     pdf = raw if ext == '.pdf' else None
     if ext == '.docx':
         with tempfile.TemporaryDirectory(prefix='convert-', dir=word_workdir()) as td:
-            src, out = Path(td)/'input.docx', Path(td)/'output.pdf'
+            src, out = Path(td)/f'source-{uuid.uuid4().hex}.docx', Path(td)/'output.pdf'
             src.write_bytes(raw); convert_docx(src, out); pdf = out.read_bytes()
     if pdf is not None and not pdf.startswith(b'%PDF-'): raise ValueError('PDF 文件无效')
     blob = f'{rid}-v{version}-view.bin' if pdf is not None else None
