@@ -59,9 +59,8 @@ set outputPath to item 2 of argv
 tell application "Microsoft Word"
  activate
  open (POSIX file inputPath)
- set docRef to active document
- save as docRef file name outputPath file format format PDF
- close docRef saving no
+ save as document 1 file name outputPath file format format PDF
+ close document 1 saving no
 end tell
 end run'''
     p = subprocess.run(['osascript', '-e', script, str(src), str(dest)], capture_output=True, text=True, timeout=180)
