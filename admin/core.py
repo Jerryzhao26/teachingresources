@@ -21,19 +21,28 @@ def open_sealed(data: bytes, key: bytes) -> bytes:
 def config():
     p = DATA / 'config.json'
     return json.loads(p.read_text()) if p.exists() else None
+def unwrap_key(password, cfg):
+    wrapping_key = derive(password, unb64(cfg['salt']))
+    return open_sealed(unb64(cfg['wrappedKey']), wrapping_key)
+
 def catalog(password):
     cfg = config()
-    if not cfg: return {'resources': [], 'updates': [], 'announcements': []}, None
-    key = derive(password, unb64(cfg['salt']))
-    obj = json.loads(open_sealed((DATA/'catalog.bin').read_bytes(), key))
-    return obj, key
+    if not cfg: return {'resources': [], 'updates': [], 'announcements': [], 'series': []}, None
+    file_key = unwrap_key(password, cfg)
+    obj = json.loads(open_sealed((DATA/'catalog.bin').read_bytes(), file_key))
+    obj.setdefault('series', [])
+    return obj, file_key
+
 def save_catalog(obj, password, key=None):
     DATA.mkdir(parents=True, exist_ok=True)
     cfg = config()
     if not cfg:
-        cfg = {'format': 1, 'kdf': 'PBKDF2-SHA256', 'iterations': ITERATIONS, 'salt': b64(secrets.token_bytes(16))}
+        salt = secrets.token_bytes(16)
+        key = secrets.token_bytes(32)
+        cfg = {'format': 2, 'kdf': 'PBKDF2-SHA256', 'iterations': ITERATIONS,
+               'salt': b64(salt), 'wrappedKey': b64(seal(key, derive(password, salt)))}
         (DATA/'config.json').write_text(json.dumps(cfg, ensure_ascii=False, indent=2))
-    key = key or derive(password, unb64(cfg['salt']))
+    key = key or unwrap_key(password, cfg)
     (DATA/'catalog.bin').write_bytes(seal(json.dumps(obj, ensure_ascii=False, separators=(',', ':')).encode(), key))
     return key
 
@@ -100,3 +109,27 @@ def publish(remote):
     remotes = subprocess.run(['git','remote'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.splitlines()
     subprocess.run(['git','remote','set-url','origin',remote] if 'origin' in remotes else ['git','remote','add','origin',remote], cwd=ROOT, check=True)
     subprocess.run(['git','push','-u','origin','main'], cwd=ROOT, check=True, timeout=120)
+
+
+def rotate_password(old_password, new_password):
+    cfg = config()
+    if not cfg: raise ValueError('资源库尚未初始化')
+    file_key = unwrap_key(old_password, cfg)
+    new_salt = secrets.token_bytes(16)
+    new_cfg = {'format': 2, 'kdf': 'PBKDF2-SHA256', 'iterations': ITERATIONS,
+               'salt': b64(new_salt), 'wrappedKey': b64(seal(file_key, derive(new_password, new_salt)))}
+    (DATA/'config.json').write_text(json.dumps(new_cfg, ensure_ascii=False, indent=2))
+
+def secure_reset(old_password, new_password):
+    obj, old_key = catalog(old_password)
+    if old_key is None: raise ValueError('资源库尚未初始化')
+    new_key = secrets.token_bytes(32)
+    blob_dir = DATA/'blobs'
+    if blob_dir.exists():
+        for path in blob_dir.glob('*.bin'):
+            path.write_bytes(seal(open_sealed(path.read_bytes(), old_key), new_key))
+    (DATA/'catalog.bin').write_bytes(seal(json.dumps(obj, ensure_ascii=False, separators=(',', ':')).encode(), new_key))
+    salt = secrets.token_bytes(16)
+    cfg = {'format': 2, 'kdf': 'PBKDF2-SHA256', 'iterations': ITERATIONS,
+           'salt': b64(salt), 'wrappedKey': b64(seal(new_key, derive(new_password, salt)))}
+    (DATA/'config.json').write_text(json.dumps(cfg, ensure_ascii=False, indent=2))
