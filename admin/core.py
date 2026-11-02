@@ -1,5 +1,5 @@
 from __future__ import annotations
-import base64, datetime as dt, hashlib, json, os, re, secrets, subprocess, tempfile, uuid
+import base64, datetime as dt, hashlib, json, os, re, secrets, ssl, subprocess, tempfile, uuid
 import urllib.error, urllib.request
 from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -135,8 +135,15 @@ def _github_request(path, token, method='GET', payload=None):
     req = urllib.request.Request('https://api.github.com' + path, data=body, method=method,
         headers={'Accept':'application/vnd.github+json', 'Authorization':'Bearer ' + token,
                  'Content-Type':'application/json', 'User-Agent':'BeaversTeachingResources'})
+    # The python.org macOS build may have no default CA bundle; keep TLS verification on.
     try:
-        with urllib.request.urlopen(req, timeout=120) as response:
+        import certifi
+        context = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        mac_bundle = Path('/etc/ssl/cert.pem')
+        context = ssl.create_default_context(cafile=str(mac_bundle) if mac_bundle.exists() else None)
+    try:
+        with urllib.request.urlopen(req, context=context, timeout=120) as response:
             return json.load(response)
     except urllib.error.HTTPError as error:
         try: detail = json.load(error).get('message', '')
