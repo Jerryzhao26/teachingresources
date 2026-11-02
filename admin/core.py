@@ -104,10 +104,12 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
 def publish(remote):
     if not re.fullmatch(r'https://github\.com/[\w.-]+/[\w.-]+(?:\.git)?', remote): raise ValueError('仅接受 GitHub HTTPS 仓库地址')
     subprocess.run(['git','init','-b','main'], cwd=ROOT, check=True, capture_output=True)
-    subprocess.run(['git','add','docs'], cwd=ROOT, check=True, capture_output=True)
-    subprocess.run(['git','-c','user.name=Beavers Education','-c','user.email=beavers@users.noreply.github.com','commit','-m','Publish teaching resources'], cwd=ROOT, check=True, capture_output=True) if subprocess.run(['git','diff','--cached','--quiet'], cwd=ROOT).returncode else None
     remotes = subprocess.run(['git','remote'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.splitlines()
     subprocess.run(['git','remote','set-url','origin',remote] if 'origin' in remotes else ['git','remote','add','origin',remote], cwd=ROOT, check=True)
+    subprocess.run(['git','fetch','origin','main'], cwd=ROOT, check=True, timeout=120)
+    subprocess.run(['git','reset','--mixed','origin/main'], cwd=ROOT, check=True)
+    subprocess.run(['git','add','docs'], cwd=ROOT, check=True, capture_output=True)
+    subprocess.run(['git','-c','user.name=Beavers Education','-c','user.email=beavers@users.noreply.github.com','commit','-m','Publish teaching resources'], cwd=ROOT, check=True, capture_output=True) if subprocess.run(['git','diff','--cached','--quiet'], cwd=ROOT).returncode else None
     subprocess.run(['git','push','-u','origin','main'], cwd=ROOT, check=True, timeout=120)
 
 
