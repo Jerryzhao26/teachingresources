@@ -31,7 +31,9 @@ class Handler(BaseHTTPRequestHandler):
                 rotate_password(body['password'], body['newPassword']); return self.send(200, {'ok':True})
             password = body['password']
             obj, key = catalog(password)
-            if action == '/api/load': return self.send(200, obj)
+            if action == '/api/load':
+                if key is None: save_catalog(obj, password)
+                return self.send(200, obj)
             if action == '/api/rename':
                 rename_resource(obj, body['id'], body['displayTitle'])
                 save_catalog(obj, password, key)
