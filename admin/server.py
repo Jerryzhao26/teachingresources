@@ -2,7 +2,7 @@ from __future__ import annotations
 import base64, json, traceback, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from .core import ROOT, SITE, add_resource, catalog, config, derive, infer, publish, rotate_password, secure_reset, save_catalog, unb64
+from .core import ROOT, SITE, DATA, add_resource, catalog, config, delete_resources, derive, infer, publish, rename_resource, rotate_password, secure_reset, save_catalog, unb64
 
 ADMIN = Path(__file__).with_name('admin.html')
 publish_token = ''
@@ -32,6 +32,16 @@ class Handler(BaseHTTPRequestHandler):
             password = body['password']
             obj, key = catalog(password)
             if action == '/api/load': return self.send(200, obj)
+            if action == '/api/rename':
+                rename_resource(obj, body['id'], body['displayTitle'])
+                save_catalog(obj, password, key)
+                return self.send(200, {'catalog':obj})
+            if action == '/api/delete':
+                blobs = delete_resources(obj, body['ids'])
+                save_catalog(obj, password, key)
+                for name in blobs:
+                    if Path(name).name == name: (DATA/'blobs'/name).unlink(missing_ok=True)
+                return self.send(200, {'catalog':obj, 'deleted':len(body['ids'])})
             if action == '/api/upload':
                 if key is None: key = save_catalog(obj, password)
                 items = []

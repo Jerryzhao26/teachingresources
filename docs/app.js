@@ -4,7 +4,7 @@ const enc = new TextEncoder();
 const fmtDate = s => new Date(s).toLocaleDateString('zh-CN',{year:'numeric',month:'short',day:'numeric'});
 function node(tag, text, cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e}
 function lessonType(value){const s=String(value||'');if(/每周两次|一周两次/.test(s))return '一周两次';if(/每周一次|一周一次/.test(s))return '一周一次';if(/每天/.test(s))return '每天上课';return s}
-function shortTitle(r){const book=String(r.book||'').replace(/\s+/g,'').toUpperCase();const unit=r.unit==null?'':`U${r.unit}`;const lesson=String(r.title||'').match(/(?:^|[^A-Z0-9])L(?:ESSON)?\s*0*(\d+)/i);const number=lesson?`L${Number(lesson[1])}`:'';return `${book}${unit}${number}${lessonType(r.lessonType)}${r.category&&r.category!=='教案'?r.category:''}`||'教学资料'}
+function shortTitle(r){if(String(r.displayTitle||'').trim())return String(r.displayTitle).trim();const book=String(r.book||'').replace(/\s+/g,'').toUpperCase();const unit=r.unit==null?'':`U${r.unit}`;const lesson=String(r.title||'').match(/(?:^|[^A-Z0-9])L(?:ESSON)?\s*0*(\d+)/i);const number=lesson?`L${Number(lesson[1])}`:'';return `${book}${unit}${number}${lessonType(r.lessonType)}${r.category&&r.category!=='教案'?r.category:''}`||'教学资料'}
 async function unlock(password){
   const cfg=await (await fetch('data/config.json',{cache:'no-store'})).json();
   const salt=Uint8Array.from(atob(cfg.salt),c=>c.charCodeAt(0));

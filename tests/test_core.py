@@ -47,4 +47,32 @@ class CoreTests(unittest.TestCase):
     result=core.publish('https://github.com/Jerryzhao26/teachingresources.git','token')
    self.assertEqual(result,{'changed':1,'sha':'newcommit'})
    self.assertEqual(calls[-1][1:],('PATCH', {'sha':'newcommit','force':False}))
+ def test_rename_and_batch_delete(self):
+  obj={'resources':[{'id':'a','title':'old','blob':'a-view.bin','originalBlob':'a-original.bin','history':[{'blob':'a-v0.bin'}]},
+                    {'id':'b','title':'other','blob':'b-view.bin','history':[]}],
+       'updates':[{'resourceId':'a'},{'resourceId':'b'}]}
+  core.rename_resource(obj,'a','新名称')
+  self.assertEqual(obj['resources'][0]['displayTitle'],'新名称')
+  with self.assertRaises(ValueError): core.delete_resources(obj,['a','missing'])
+  self.assertEqual(len(obj['resources']),2)
+  blobs=core.delete_resources(obj,['a','b'])
+  self.assertEqual(blobs,{'a-view.bin','a-original.bin','a-v0.bin','b-view.bin'})
+  self.assertFalse(obj['resources'])
+  self.assertFalse(obj['updates'])
+ def test_publish_removes_deleted_blob_from_current_tree(self):
+  with tempfile.TemporaryDirectory() as d:
+   site=Path(d); (site/'data/blobs').mkdir(parents=True)
+   calls=[]
+   def github(path, token, method='GET', payload=None):
+    calls.append((path,method,payload))
+    if path.endswith('/git/ref/heads/main'): return {'object':{'sha':'old'}}
+    if path.endswith('/git/commits/old'): return {'tree':{'sha':'tree'}}
+    if path.endswith('/git/trees/tree?recursive=1'): return {'tree':[{'path':'docs/data/blobs/deleted.bin','sha':'oldblob','type':'blob'}]}
+    if path.endswith('/git/trees'): return {'sha':'newtree'}
+    if path.endswith('/git/commits'): return {'sha':'newcommit'}
+    return {}
+   with patch.object(core,'SITE',site), patch.object(core,'_github_request',side_effect=github):
+    core.publish('https://github.com/Jerryzhao26/teachingresources.git','token')
+   tree_call=next(c for c in calls if c[0].endswith('/git/trees') and c[1]=='POST')
+   self.assertEqual(tree_call[2]['tree'],[{'path':'docs/data/blobs/deleted.bin','mode':'100644','type':'blob','sha':None}])
 if __name__=='__main__':unittest.main()

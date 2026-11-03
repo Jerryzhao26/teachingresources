@@ -122,6 +122,7 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
             'download': bool(fields.get('download', True)), 'filename': Path(original).stem + '.pdf',
             'originalFilename': original, 'originalBlob': original_blob, 'viewable': pdf is not None,
             'version': version, 'updatedAt': now, 'blob': blob, 'size': len(raw), 'status': 'published',
+            'displayTitle': old.get('displayTitle', '') if old else '',
             'history': (old.get('history', []) + [{k: old.get(k) for k in ('version','blob','originalBlob','updatedAt','filename','originalFilename')}]) if old else []}
     if old: obj['resources'].remove(old)
     obj['resources'].append(item)
@@ -129,6 +130,27 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
     obj['updates'].insert(0, {'id': str(uuid.uuid4()), 'resourceId': rid, 'title': item['title'], 'text': note,
                               'kind': 'updated' if old else 'created', 'createdAt': now, 'visible': bool(fields.get('showUpdate', True))})
     return item
+
+def rename_resource(obj, resource_id, display_title):
+    title = str(display_title or '').strip()
+    if not title or len(title) > 100: raise ValueError('名称需为 1–100 个字符')
+    item = next((r for r in obj['resources'] if r['id'] == resource_id), None)
+    if item is None: raise ValueError('找不到该资源')
+    item['displayTitle'] = title
+    return item
+
+def delete_resources(obj, resource_ids):
+    ids = set(resource_ids)
+    if not ids or len(ids) != len(resource_ids): raise ValueError('请选择有效的资源')
+    removed = [r for r in obj['resources'] if r['id'] in ids]
+    if len(removed) != len(ids): raise ValueError('部分资源不存在')
+    blobs = set()
+    for item in removed:
+        for version in [item] + item.get('history', []):
+            blobs.update(name for name in (version.get('blob'), version.get('originalBlob')) if name)
+    obj['resources'] = [r for r in obj['resources'] if r['id'] not in ids]
+    obj['updates'] = [u for u in obj['updates'] if u.get('resourceId') not in ids]
+    return blobs
 
 def _github_request(path, token, method='GET', payload=None):
     body = json.dumps(payload).encode() if payload is not None else None
@@ -175,6 +197,10 @@ def publish(remote, token):
         blob = _github_request(prefix + '/git/blobs', token, 'POST',
             {'content':b64(raw), 'encoding':'base64'})
         changes.append({'path':name, 'mode':'100644', 'type':'blob', 'sha':blob['sha']})
+    local_blobs = {'docs/data/blobs/' + path.name for path in encrypted_files[2:]}
+    for name in known:
+        if name.startswith('docs/data/blobs/') and name.endswith('.bin') and name not in local_blobs:
+            changes.append({'path':name, 'mode':'100644', 'type':'blob', 'sha':None})
     if not changes: return {'changed':0, 'sha':head}
     new_tree = _github_request(prefix + '/git/trees', token, 'POST',
         {'base_tree':tree_sha, 'tree':changes})
