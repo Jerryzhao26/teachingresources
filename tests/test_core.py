@@ -27,6 +27,7 @@ class CoreTests(unittest.TestCase):
    finally:core.DATA=olddata
  def test_infer(self):
   self.assertEqual(core.infer('BE2-U5-每周两次.docx')['unit'],5)
+  self.assertEqual(core.infer('BE1U1L1一周两次.docx')['lessonNumber'],1)
   self.assertEqual(core.infer('BE2-U5-每周两次.docx')['lessonType'],'一周两次')
   self.assertEqual(core.normalize_lesson_type('每天上课'),'每天上课')
   self.assertEqual(core.normalize_lesson_type('教材'),'教材')
@@ -51,8 +52,8 @@ class CoreTests(unittest.TestCase):
   obj={'resources':[{'id':'a','title':'old','blob':'a-view.bin','originalBlob':'a-original.bin','history':[{'blob':'a-v0.bin'}]},
                     {'id':'b','title':'other','blob':'b-view.bin','history':[]}],
        'updates':[{'resourceId':'a'},{'resourceId':'b'}]}
-  core.rename_resource(obj,'a','新名称')
-  self.assertEqual(obj['resources'][0]['displayTitle'],'新名称')
+  core.rename_resource(obj,'a','BE1U2L3一周两次')
+  self.assertEqual(obj['resources'][0]['displayTitle'],'BE1U2L3一周两次')
   with self.assertRaises(ValueError): core.delete_resources(obj,['a','missing'])
   self.assertEqual(len(obj['resources']),2)
   blobs=core.delete_resources(obj,['a','b'])

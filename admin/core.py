@@ -57,8 +57,10 @@ def normalize_lesson_type(value):
 
 def infer(name):
     stem = Path(name).stem
-    m = re.search(r'(?i)\b(BE\s*\d+)\s*[-_ ]*U(?:nit)?\s*(\d+)\b', stem)
+    m = re.search(r'(?i)\b(BE\s*\d+)\s*[-_ ]*U(?:nit)?\s*(\d+)', stem)
+    lesson = re.search(r'(?i)(?:^|[^A-Z])L(?:esson)?\s*0*(\d+)', stem)
     return {'book': m.group(1).upper().replace(' ', '') if m else '', 'unit': int(m.group(2)) if m else None,
+            'lessonNumber': int(lesson.group(1)) if lesson else None,
             'title': stem, 'lessonType': normalize_lesson_type(stem)}
 
 def convert_docx(src: Path, dest: Path):
@@ -118,6 +120,7 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     item = {'id': rid, 'title': str(fields.get('title') or Path(original).stem).strip(),
             'book': str(fields.get('book') or '').strip(), 'unit': fields.get('unit'),
+            'lessonNumber': fields.get('lessonNumber') or infer(original)['lessonNumber'],
             'lessonType': normalize_lesson_type(fields.get('lessonType')),  'category': str(fields.get('category') or '教案').strip(),
             'download': bool(fields.get('download', True)), 'filename': Path(original).stem + '.pdf',
             'originalFilename': original, 'originalBlob': original_blob, 'viewable': pdf is not None,
@@ -133,10 +136,13 @@ def add_resource(obj, key, filename, raw, fields, converted=False):
 
 def rename_resource(obj, resource_id, display_title):
     title = str(display_title or '').strip()
-    if not title or len(title) > 100: raise ValueError('名称需为 1–100 个字符')
+    match = re.fullmatch(r'(?i)(BE\d+)\s*[-_ ]*U(\d+)\s*[-_ ]*(?:L(\d+))?\s*(一周一次|一周两次|每天上课|教材)', title)
+    if not match: raise ValueError('请按 BE1U1L1一周两次 的格式输入名称')
     item = next((r for r in obj['resources'] if r['id'] == resource_id), None)
     if item is None: raise ValueError('找不到该资源')
-    item['displayTitle'] = title
+    book, unit, lesson, course_type = match.groups()
+    item.update({'book':book.upper(), 'unit':int(unit), 'lessonNumber':int(lesson) if lesson else None,
+                 'lessonType':course_type, 'displayTitle':f'{book.upper()}U{int(unit)}' + (f'L{int(lesson)}' if lesson else '') + course_type})
     return item
 
 def delete_resources(obj, resource_ids):
